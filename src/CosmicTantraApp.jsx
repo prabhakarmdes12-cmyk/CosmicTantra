@@ -15,6 +15,9 @@ import ChatBox from './components/ChatBox.jsx';
 import ConsultantMarketplace from './components/ConsultantMarketplace.jsx';
 import ShareReport from './components/ShareReport.jsx';
 import DailyHoroscope from './components/DailyHoroscope.jsx';
+import SoulProfile from './components/SoulProfile.jsx';
+import CosmicShare from './components/CosmicShare.jsx';
+import DailyGuidance from './components/DailyGuidance.jsx';
 
 // ─── STYLES ───────────────────────────────────────────────────────────────────
 const css = `
@@ -67,11 +70,26 @@ const css = `
   }
 
   .animate-up { animation: slideUp 0.5s ease forwards; }
+  /* ── DIVINE TEMPLE EFFECTS ── */
   .card {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 16px;
     backdrop-filter: blur(8px);
+    transition: box-shadow 0.3s ease;
+  }
+  .card:hover {
+    box-shadow: 0 4px 30px rgba(124,58,237,0.12);
+  }
+
+  /* Divine glow pulse on the nav */
+  nav {
+    box-shadow: 0 4px 30px rgba(124,58,237,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* Glowing active tabs */
+  .tab-btn.active {
+    box-shadow: 0 0 16px rgba(124,58,237,0.3);
   }
   .section-title {
     font-family: 'Cinzel', serif;
@@ -132,14 +150,17 @@ const CITIES = [
 
 // ─── NAV TABS ─────────────────────────────────────────────────────────────────
 const TABS = [
-  { id: 'kundali',    label: '🗺️ Kundali',    short: 'Kundali' },
-  { id: 'swarga',    label: '🌌 Swarga Lok',  short: '3D' },
-  { id: 'dasha',     label: '⏳ Dasha',       short: 'Dasha' },
-  { id: 'panchang',  label: '📅 Panchang',    short: 'Panchang' },
-  { id: 'karma',     label: '☸️ Karma',       short: 'Karma' },
-  { id: 'guru',      label: '🧘 Guru AI',     short: 'Guru' },
+  { id: 'kundali',    label: '🗺️ Kundali',    short: 'Kundali'   },
+  { id: 'swarga',    label: '🌌 Swarga Lok',  short: '3D'        },
+  { id: 'dasha',     label: '⏳ Dasha',       short: 'Dasha'     },
+  { id: 'panchang',  label: '📅 Panchang',    short: 'Panchang'  },
+  { id: 'karma',     label: '☸️ Karma',       short: 'Karma'     },
+  { id: 'soul',      label: '🪬 Soul Profile',short: 'Soul'      },
+  { id: 'guidance',  label: '🌅 Guidance',    short: 'Guidance'  },
   { id: 'horoscope', label: '🌟 Horoscope',   short: 'Horoscope' },
-  { id: 'consult',   label: '👥 Consult',     short: 'Consult' },
+  { id: 'share',     label: '✨ Share',        short: 'Share'     },
+  { id: 'guru',      label: '🧘 Guru AI',     short: 'Guru'      },
+  { id: 'consult',   label: '👥 Consult',     short: 'Consult'   },
 ];
 
 // ─── MAIN APP ──────────────────────────────────────────────────────────────────
@@ -821,6 +842,27 @@ export default function CosmicTantraApp() {
           {activeTab === 'panchang' && renderPanchangTab()}
           {activeTab === 'karma'    && renderKarmaTab()}
           {activeTab === 'guru'     && renderGuruTab()}
+          {activeTab === 'soul' && (
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <SoulProfile kundali={kundali} lifePredictions={lifePredictions} dashas={dashas} name={form.name} />
+            </div>
+          )}
+          {activeTab === 'guidance' && (
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <DailyGuidance kundali={kundali} panchang={panchang} language={guruLanguage} />
+            </div>
+          )}
+          {activeTab === 'share' && (
+            <div className="card" style={{ padding: '1.5rem' }}>
+              <CosmicShare
+                kundali={kundali}
+                currentDasha={currentDasha}
+                lifePredictions={lifePredictions}
+                panchang={panchang}
+                name={form.name || 'Cosmic Seeker'}
+              />
+            </div>
+          )}
           {activeTab === 'horoscope' && (
             <div className="card" style={{ padding: '1.5rem' }}>
               <DailyHoroscope userLagna={kundali?.lagna?.rasiName} />
