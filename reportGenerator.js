@@ -1,0 +1,357 @@
+/**
+ * CosmicTantra V34 — Report & PDF Generator
+ * Generates shareable daily reports and downloadable PDF Kundali summaries
+ */
+
+// ─── PDF GENERATION ──────────────────────────────────────────────────────────
+
+/**
+ * Generate a full PDF Kundali report using jsPDF
+ * @param {Object} kundali - from astrologyEngine
+ * @param {Object} lifePredictions - from generateLifePredictions
+ * @param {Object} panchang - from calculatePanchang
+ * @param {Object} currentDasha - from getCurrentDasha
+ * @param {string} name - person's name
+ */
+export async function generateKundaliPDF(kundali, lifePredictions, panchang, currentDasha, name = 'Cosmic Seeker') {
+  let jsPDF;
+  try {
+    const mod = await import('jspdf');
+    jsPDF = mod.jsPDF;
+  } catch (e) {
+    console.error('jsPDF not available:', e);
+    return null;
+  }
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pw = doc.internal.pageSize.getWidth();   // 210
+  const ph = doc.internal.pageSize.getHeight();  // 297
+
+  // ── COLORS ──
+  const C = {
+    bg:      [3,   1,   8],
+    accent:  [124, 58,  237],
+    gold:    [245, 158, 11],
+    muted:   [107, 114, 128],
+    text:    [226, 217, 243],
+    white:   [255, 255, 255],
+    dark:    [13,  10,  30],
+    green:   [16,  185, 129],
+    red:     [239, 68,  68],
+  };
+
+  // ── HELPERS ──
+  function setFill(col) { doc.setFillColor(...col); }
+  function setStroke(col) { doc.setDrawColor(...col); }
+  function setTextColor(col) { doc.setTextColor(...col); }
+
+  function hline(y, x1 = 15, x2 = pw - 15, color = C.accent, opacity = 0.3) {
+    doc.setDrawColor(...color);
+    doc.setLineWidth(0.3);
+    doc.line(x1, y, x2, y);
+  }
+
+  function box(x, y, w, h, fillColor, strokeColor) {
+    if (fillColor) { setFill(fillColor); doc.rect(x, y, w, h, 'F'); }
+    if (strokeColor) { setStroke(strokeColor); doc.rect(x, y, w, h, 'S'); }
+  }
+
+  function text(str, x, y, opts = {}) {
+    const { size = 10, color = C.text, bold = false, align = 'left' } = opts;
+    doc.setFontSize(size);
+    setTextColor(color);
+    doc.setFont('helvetica', bold ? 'bold' : 'normal');
+    doc.text(str, x, y, { align });
+  }
+
+  // ── PAGE 1: COVER ──────────────────────────────────────────────────────────
+  // Background
+  setFill(C.bg); doc.rect(0, 0, pw, ph, 'F');
+
+  // Top gradient bar
+  setFill(C.accent); doc.rect(0, 0, pw, 40, 'F');
+  setFill(C.gold);   doc.rect(0, 36, pw, 4, 'F');
+
+  // OM symbol area
+  text('🕉', pw / 2, 22, { size: 24, color: C.white, align: 'center' });
+
+  // Title
+  text('COSMICTANTRA V34', pw / 2, 55, { size: 22, color: C.gold, bold: true, align: 'center' });
+  text('Vedic Jyotish Kundali Report', pw / 2, 64, { size: 12, color: C.muted, align: 'center' });
+
+  hline(70);
+
+  // Person info
+  text(name.toUpperCase(), pw / 2, 82, { size: 16, color: C.text, bold: true, align: 'center' });
+  text(`Birth Chart — ${kundali?.metadata?.birthDate?.slice(0, 10) || 'N/A'}`, pw / 2, 90, { size: 10, color: C.muted, align: 'center' });
+  text(`Location: ${kundali?.metadata?.latitude?.toFixed(2)}°N, ${kundali?.metadata?.longitude?.toFixed(2)}°E`, pw / 2, 97, { size: 9, color: C.muted, align: 'center' });
+
+  hline(103);
+
+  // Lagna highlight box
+  box(20, 108, pw - 40, 32, C.dark, C.accent);
+  text('LAGNA (ASCENDANT)', pw / 2, 117, { size: 8, color: C.muted, bold: true, align: 'center' });
+  text(kundali?.lagna?.rasiName?.toUpperCase() || '—', pw / 2, 126, { size: 20, color: C.gold, bold: true, align: 'center' });
+  text(`${kundali?.lagna?.nakshatra?.name || '—'} Nakshatra · ${kundali?.lagna?.degreeInRasi?.toFixed(1)}° in ${kundali?.lagna?.rasiName}`, pw / 2, 133, { size: 8, color: C.muted, align: 'center' });
+
+  // 4 key planets
+  const highlights = [
+    { label: 'Sun', val: kundali?.planets?.Sun?.rasiName },
+    { label: 'Moon', val: kundali?.planets?.Moon?.rasiName },
+    { label: 'Jupiter', val: kundali?.planets?.Jupiter?.rasiName },
+    { label: 'Venus', val: kundali?.planets?.Venus?.rasiName },
+  ];
+  const colW = (pw - 40) / 4;
+  highlights.forEach((h, i) => {
+    const x = 20 + i * colW;
+    box(x, 148, colW - 4, 22, [20, 10, 40], C.accent);
+    text(h.label, x + colW / 2 - 2, 155, { size: 7, color: C.muted, align: 'center' });
+    text(h.val || '—', x + colW / 2 - 2, 163, { size: 9, color: C.text, bold: true, align: 'center' });
+  });
+
+  // Current Dasha
+  if (currentDasha) {
+    box(20, 178, pw - 40, 24, [20, 10, 40], C.accent);
+    text('CURRENT DASHA', pw / 2, 186, { size: 7, color: C.muted, bold: true, align: 'center' });
+    text(`${currentDasha.planet} Mahadasha · ${currentDasha.percentDone}% complete`, pw / 2, 194, { size: 10, color: C.gold, bold: true, align: 'center' });
+  }
+
+  // Ayanamsha
+  text(`Lahiri Ayanamsha: ${kundali?.ayanamsha}°`, pw / 2, 215, { size: 8, color: C.muted, align: 'center' });
+
+  // Footer
+  setFill(C.dark); doc.rect(0, ph - 18, pw, 18, 'F');
+  text('Generated by CosmicTantra V34 · Vedic Jyotish AI Platform', pw / 2, ph - 8, { size: 8, color: C.muted, align: 'center' });
+  text(`Report Date: ${new Date().toLocaleDateString('en-IN')}`, pw / 2, ph - 3, { size: 7, color: [60, 60, 80], align: 'center' });
+
+  // ── PAGE 2: PLANETARY TABLE ────────────────────────────────────────────────
+  doc.addPage();
+  setFill(C.bg); doc.rect(0, 0, pw, ph, 'F');
+
+  // Header bar
+  setFill(C.dark); doc.rect(0, 0, pw, 20, 'F');
+  text('PLANETARY POSITIONS', pw / 2, 13, { size: 12, color: C.gold, bold: true, align: 'center' });
+  hline(20);
+
+  // Table headers
+  const cols = [15, 55, 90, 120, 160, 185];
+  const headers = ['Planet', 'Sign (Rasi)', 'House', 'Nakshatra', 'Degree', 'Status'];
+  let y = 32;
+  box(15, y - 6, pw - 30, 10, C.dark);
+  headers.forEach((h, i) => {
+    text(h, cols[i], y, { size: 7, color: C.muted, bold: true });
+  });
+  y += 6;
+  hline(y);
+
+  // Planet rows
+  const planets = kundali?.planets || {};
+  Object.entries(planets).forEach(([name, p], idx) => {
+    y += 9;
+    if (idx % 2 === 0) { box(15, y - 6, pw - 30, 9, [18, 12, 35]); }
+    const statusColor = p.status === 'Exalted' ? C.green : p.status === 'Debilitated' ? C.red : C.text;
+    text(name, cols[0], y, { size: 8, color: C.gold });
+    text(p.rasiName, cols[1], y, { size: 8 });
+    text(String(p.house), cols[2], y, { size: 8 });
+    text(p.nakshatra?.name || '—', cols[3], y, { size: 7, color: C.muted });
+    text(`${p.degreeInRasi?.toFixed(1)}°`, cols[4], y, { size: 8 });
+    text(p.status, cols[5], y, { size: 7, color: statusColor });
+  });
+
+  y += 18;
+  hline(y);
+  y += 10;
+
+  // House table
+  text('BHAVA (HOUSE) ANALYSIS', 15, y, { size: 11, color: C.gold, bold: true });
+  y += 8;
+  box(15, y - 5, pw - 30, 8, C.dark);
+  text('House', 15, y, { size: 7, color: C.muted, bold: true });
+  text('Sign', 40, y, { size: 7, color: C.muted, bold: true });
+  text('Significance', 75, y, { size: 7, color: C.muted, bold: true });
+  text('Planets', 155, y, { size: 7, color: C.muted, bold: true });
+  y += 5; hline(y);
+
+  const houses = kundali?.houses || [];
+  houses.slice(0, 12).forEach((h, idx) => {
+    y += 8;
+    if (idx % 2 === 0) { box(15, y - 5, pw - 30, 8, [18, 12, 35]); }
+    text(`H${h.number}`, 15, y, { size: 7, color: C.gold });
+    text(h.rasiName, 40, y, { size: 7 });
+    text(h.significance.slice(0, 38), 75, y, { size: 6, color: C.muted });
+    text(h.planets.join(', ') || '—', 155, y, { size: 7, color: [180, 140, 255] });
+  });
+
+  // ── PAGE 3: PREDICTIONS & PANCHANG ────────────────────────────────────────
+  doc.addPage();
+  setFill(C.bg); doc.rect(0, 0, pw, ph, 'F');
+  setFill(C.dark); doc.rect(0, 0, pw, 20, 'F');
+  text('LIFE PREDICTIONS & DAILY PANCHANG', pw / 2, 13, { size: 12, color: C.gold, bold: true, align: 'center' });
+  hline(20);
+
+  y = 32;
+  // Predictions
+  const preds = [
+    { title: 'Career & Profession', content: lifePredictions?.career?.field + ' · ' + lifePredictions?.career?.tip, color: C.accent },
+    { title: 'Wealth & Finance', content: 'Source: ' + lifePredictions?.wealth?.source + ' · Score: ' + lifePredictions?.wealth?.score + '%', color: C.green },
+    { title: 'Love & Marriage', content: 'Partner: ' + lifePredictions?.love?.partner + ' · Timing: ' + lifePredictions?.love?.timing, color: [236, 72, 153] },
+    { title: 'Karma & Dharma', content: lifePredictions?.karma?.dharma + ' · Lesson: ' + lifePredictions?.karma?.lesson, color: [139, 92, 246] },
+    { title: 'Health', content: lifePredictions?.health?.constitution + ' · ' + lifePredictions?.health?.caution, color: [245, 158, 11] },
+  ];
+
+  preds.forEach(pred => {
+    box(15, y - 5, pw - 30, 18, C.dark, pred.color);
+    text(pred.title, 20, y + 1, { size: 8, color: pred.color, bold: true });
+    const lines = doc.splitTextToSize(pred.content || '', pw - 50);
+    text(lines[0] || '', 20, y + 8, { size: 7, color: C.muted });
+    y += 22;
+  });
+
+  y += 5; hline(y); y += 10;
+
+  // Panchang
+  text("TODAY'S PANCHANG", 15, y, { size: 11, color: C.gold, bold: true });
+  y += 8;
+  if (panchang) {
+    const panchangItems = [
+      ['Tithi', panchang.tithi.name + ' · ' + panchang.tithi.meaning],
+      ['Nakshatra', panchang.nakshatra.name + ' (Pada ' + panchang.nakshatra.pada + ')'],
+      ['Yoga', panchang.yoga.name + ' · ' + panchang.yoga.quality],
+      ['Karana', panchang.karana.name],
+      ['Vara (Day)', panchang.vara.day + ' · ' + panchang.vara.planet],
+      ['Moon Phase', panchang.moonPhase.name],
+      ['Sunrise', panchang.sunrise + ' · Sunset: ' + panchang.sunset],
+      ['Rahu Kala', panchang.rahuKala.start + ' – ' + panchang.rahuKala.end],
+    ];
+    panchangItems.forEach(([label, val], idx) => {
+      if (idx % 2 === 0) { box(15, y - 5, pw - 30, 8, [18, 12, 35]); }
+      text(label + ':', 20, y, { size: 7, color: C.muted, bold: true });
+      text(val, 65, y, { size: 7, color: C.text });
+      y += 8;
+    });
+  }
+
+  // Footer on all pages
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    setFill(C.dark); doc.rect(0, ph - 14, pw, 14, 'F');
+    text('CosmicTantra V34 · Vedic Jyotish AI Platform · cosmictantra.app', pw / 2, ph - 5, { size: 7, color: C.muted, align: 'center' });
+    text(`Page ${i} of ${totalPages}`, pw - 20, ph - 5, { size: 7, color: C.muted });
+  }
+
+  doc.save(`CosmicTantra_${name.replace(/\s+/g, '_')}_Kundali.pdf`);
+  return true;
+}
+
+// ─── SHAREABLE TEXT REPORT ────────────────────────────────────────────────────
+
+export function generateShareableReport(kundali, lifePredictions, panchang, currentDasha, name = 'Seeker') {
+  if (!kundali) return 'Please generate your Kundali first.';
+
+  const lines = [
+    `🕉️ COSMICTANTRA V34 — Vedic Kundali Report`,
+    `═════════════════════════════════════════`,
+    ``,
+    `👤 Name: ${name}`,
+    `📅 Birth: ${kundali.metadata?.birthDate?.slice(0, 10)}`,
+    `📍 Location: ${kundali.metadata?.latitude?.toFixed(2)}°N, ${kundali.metadata?.longitude?.toFixed(2)}°E`,
+    ``,
+    `🌟 LAGNA: ${kundali.lagna.rasiName} (${kundali.lagna.nakshatra.name} Nakshatra)`,
+    ``,
+    `🪐 PLANETARY POSITIONS`,
+    `─────────────────────`,
+    ...Object.entries(kundali.planets).map(([name, p]) =>
+      `${name.padEnd(9)} → ${p.rasiName.padEnd(13)} H${p.house}  ${p.nakshatra.name.padEnd(20)} [${p.status}]`
+    ),
+    ``,
+    `⏳ CURRENT DASHA: ${currentDasha?.planet || '—'} (${currentDasha?.percentDone || 0}% complete)`,
+    currentDasha ? `   ${currentDasha.theme}` : '',
+    ``,
+    `💼 CAREER:  ${lifePredictions?.career?.field || '—'}`,
+    `💰 WEALTH:  ${lifePredictions?.wealth?.source || '—'} (Score: ${lifePredictions?.wealth?.score || 0}%)`,
+    `❤️  LOVE:    ${lifePredictions?.love?.partner || '—'}`,
+    `☸️  KARMA:   ${lifePredictions?.karma?.lesson || '—'}`,
+    ``,
+  ];
+
+  if (panchang) {
+    lines.push(
+      `📅 TODAY'S PANCHANG (${panchang.date})`,
+      `─────────────────────────────────`,
+      `Tithi:     ${panchang.tithi.name} — ${panchang.tithi.meaning}`,
+      `Nakshatra: ${panchang.nakshatra.name} (Pada ${panchang.nakshatra.pada})`,
+      `Yoga:      ${panchang.yoga.name} — ${panchang.yoga.quality}`,
+      `Vara:      ${panchang.vara.day} (${panchang.vara.planet})`,
+      `Moon:      ${panchang.moonPhase.name}`,
+      `Sunrise:   ${panchang.sunrise} · Sunset: ${panchang.sunset}`,
+      `Rahu Kala: ${panchang.rahuKala.start} – ${panchang.rahuKala.end}`,
+      ``,
+      `✨ GUIDANCE: ${panchang.guidance.overall}`,
+      `🙏 REMEDY:   ${panchang.guidance.remedy}`,
+    );
+  }
+
+  lines.push(
+    ``,
+    `═════════════════════════════════════════`,
+    `Generated by CosmicTantra V34 · ${new Date().toLocaleDateString('en-IN')}`,
+    `🌐 cosmictantra.app`,
+  );
+
+  return lines.join('\n');
+}
+
+// ─── CLIPBOARD COPY HELPER ────────────────────────────────────────────────────
+
+export async function copyReportToClipboard(reportText) {
+  try {
+    await navigator.clipboard.writeText(reportText);
+    return true;
+  } catch {
+    // Fallback
+    const el = document.createElement('textarea');
+    el.value = reportText;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    return true;
+  }
+}
+
+// ─── SCREENSHOT & IMAGE EXPORT ────────────────────────────────────────────────
+
+export async function exportChartAsImage(elementId, filename = 'kundali-chart.png') {
+  let html2canvas;
+  try {
+    const mod = await import('html2canvas');
+    html2canvas = mod.default;
+  } catch (e) {
+    console.error('html2canvas not available:', e);
+    return null;
+  }
+
+  const el = document.getElementById(elementId);
+  if (!el) return null;
+
+  const canvas = await html2canvas(el, {
+    backgroundColor: '#030108',
+    scale: 2,
+    useCORS: true,
+    logging: false,
+  });
+
+  const link = document.createElement('a');
+  link.download = filename;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  return true;
+}
+
+export default {
+  generateKundaliPDF,
+  generateShareableReport,
+  copyReportToClipboard,
+  exportChartAsImage,
+};
